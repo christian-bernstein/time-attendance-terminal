@@ -28,6 +28,7 @@ import net.minecraftforge.fml.event.lifecycle.InterModEnqueueEvent;
 import net.minecraftforge.fml.event.lifecycle.InterModProcessEvent;
 import net.minecraftforge.event.server.ServerStartingEvent;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
+import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 
 import java.util.stream.Collectors;
@@ -61,8 +62,6 @@ public class TimeAttendanceTerminalMod {
         // some preinit code
         LOGGER.info("HELLO FROM PREINIT");
         LOGGER.info("DIRT BLOCK >> {}", Blocks.DIRT.getRegistryName());
-
-
     }
 
     private void enqueueIMC(final InterModEnqueueEvent event) {
@@ -70,7 +69,7 @@ public class TimeAttendanceTerminalMod {
         InterModComms.sendTo("examplemod", "helloworld", () -> { LOGGER.info("Hello world from the MDK"); return "Hello world";});
     }
 
-    private void processIMC(final InterModProcessEvent event) {
+    private void processIMC(final @NotNull InterModProcessEvent event) {
         // Some example code to receive and process InterModComms from other mods
         LOGGER.info("Got IMC {}", event.getIMCStream().
                 map(m->m.messageSupplier().get()).
@@ -79,7 +78,7 @@ public class TimeAttendanceTerminalMod {
 
     // You can use SubscribeEvent and let the Event Bus discover methods to call
     @SubscribeEvent
-    public void onServerStarting(ServerStartingEvent event) {
+    public void onServerStarting(@NotNull ServerStartingEvent event) {
         // Do something when the server starts
         LOGGER.info("HELLO from server starting");
 

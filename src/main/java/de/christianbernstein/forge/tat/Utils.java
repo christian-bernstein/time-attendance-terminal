@@ -10,7 +10,7 @@
  * the License.
  */
 
-package de.christianbernstein.forge.tat.shared;
+package de.christianbernstein.forge.tat;
 
 import org.jetbrains.annotations.NotNull;
 
