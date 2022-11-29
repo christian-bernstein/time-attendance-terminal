@@ -23,8 +23,7 @@ import java.util.stream.Collectors;
 // The value here should match an entry in the META-INF/mods.toml file
 // @Mod("timeattendanceterminal")
 @Mod("examplemod")
-public class TimeAttendanceTerminalMod
-{
+public class TimeAttendanceTerminalMod {
     // Directly reference a slf4j logger
     private static final Logger LOGGER = LogUtils.getLogger();
 
