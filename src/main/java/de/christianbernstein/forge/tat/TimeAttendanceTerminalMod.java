@@ -62,6 +62,7 @@ public class TimeAttendanceTerminalMod {
         LOGGER.info("HELLO FROM PREINIT");
         LOGGER.info("DIRT BLOCK >> {}", Blocks.DIRT.getRegistryName());
 
+
     }
 
     private void enqueueIMC(final InterModEnqueueEvent event) {
@@ -76,24 +77,22 @@ public class TimeAttendanceTerminalMod {
                 collect(Collectors.toList()));
     }
 
-
-
     // You can use SubscribeEvent and let the Event Bus discover methods to call
     @SubscribeEvent
-    public void onServerStarting(ServerStartingEvent event)
-    {
+    public void onServerStarting(ServerStartingEvent event) {
         // Do something when the server starts
         LOGGER.info("HELLO from server starting");
+
+        event.getServer().getServerDirectory();
     }
 
     // You can use EventBusSubscriber to automatically subscribe events on the contained class (this is subscribing to the MOD
     // Event bus for receiving Registry Events)
     @Mod.EventBusSubscriber(bus = Mod.EventBusSubscriber.Bus.MOD)
-    public static class RegistryEvents
-    {
+    public static class RegistryEvents {
+
         @SubscribeEvent
-        public static void onBlocksRegistry(final RegistryEvent.Register<Block> blockRegistryEvent)
-        {
+        public static void onBlocksRegistry(final RegistryEvent.Register<Block> blockRegistryEvent) {
             // Register a new block here
             LOGGER.info("HELLO from Register Block");
         }
