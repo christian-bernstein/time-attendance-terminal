@@ -33,9 +33,9 @@ import org.slf4j.Logger;
 import java.util.stream.Collectors;
 
 // The value here should match an entry in the META-INF/mods.toml file
-// @Mod("timeattendanceterminal")
 @Mod("examplemod")
 public class TimeAttendanceTerminalMod {
+
     // Directly reference a slf4j logger
     private static final Logger LOGGER = LogUtils.getLogger();
 
@@ -51,36 +51,32 @@ public class TimeAttendanceTerminalMod {
         MinecraftForge.EVENT_BUS.register(this);
 
 
-
         MinecraftForge.EVENT_BUS.register(RegisterCommandEvent.class);
         MinecraftForge.EVENT_BUS.register(RegisterPlayerJoinEvent.class);
         MinecraftForge.EVENT_BUS.register(RegisterPlayerQuitEvent.class);
 
-
     }
 
-    private void setup(final FMLCommonSetupEvent event)
-    {
+    private void setup(final FMLCommonSetupEvent event) {
         // some preinit code
         LOGGER.info("HELLO FROM PREINIT");
         LOGGER.info("DIRT BLOCK >> {}", Blocks.DIRT.getRegistryName());
 
-
     }
 
-    private void enqueueIMC(final InterModEnqueueEvent event)
-    {
+    private void enqueueIMC(final InterModEnqueueEvent event) {
         // Some example code to dispatch IMC to another mod
         InterModComms.sendTo("examplemod", "helloworld", () -> { LOGGER.info("Hello world from the MDK"); return "Hello world";});
     }
 
-    private void processIMC(final InterModProcessEvent event)
-    {
+    private void processIMC(final InterModProcessEvent event) {
         // Some example code to receive and process InterModComms from other mods
         LOGGER.info("Got IMC {}", event.getIMCStream().
                 map(m->m.messageSupplier().get()).
                 collect(Collectors.toList()));
     }
+
+
 
     // You can use SubscribeEvent and let the Event Bus discover methods to call
     @SubscribeEvent
