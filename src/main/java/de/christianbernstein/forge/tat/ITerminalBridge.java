@@ -15,9 +15,8 @@ package de.christianbernstein.forge.tat;
 /**
  * @author Christian Bernstein
  */
-public interface ITimeAttendanceTerminal {
+public interface ITerminalBridge {
 
-    void start();
 
-    void stop();
+
 }
