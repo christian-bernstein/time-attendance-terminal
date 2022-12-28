@@ -13,9 +13,14 @@
 package de.christianbernstein.forge.tat;
 
 import com.mojang.logging.LogUtils;
+import de.christianbernstein.chronos.TimeSpan;
+import de.christianbernstein.chronos.TimerAPI;
+import de.christianbernstein.chronos.TimerAPIBridge;
 import de.christianbernstein.forge.tat.common.events.RegisterCommandEvent;
 import de.christianbernstein.forge.tat.common.events.RegisterPlayerJoinEvent;
 import de.christianbernstein.forge.tat.common.events.RegisterPlayerQuitEvent;
+import net.minecraft.client.Minecraft;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraftforge.common.MinecraftForge;
@@ -28,9 +33,16 @@ import net.minecraftforge.fml.event.lifecycle.InterModEnqueueEvent;
 import net.minecraftforge.fml.event.lifecycle.InterModProcessEvent;
 import net.minecraftforge.event.server.ServerStartingEvent;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
+import net.minecraftforge.server.ServerLifecycleHooks;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 
+import java.io.File;
+import java.net.URL;
+import java.net.URLClassLoader;
+import java.util.Arrays;
+import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 // The value here should match an entry in the META-INF/mods.toml file
@@ -39,6 +51,8 @@ public class TimeAttendanceTerminalMod {
 
     // Directly reference a slf4j logger
     private static final Logger LOGGER = LogUtils.getLogger();
+
+    public static TimerAPI chronosShared;
 
     public TimeAttendanceTerminalMod() {
         // Register the setup method for modloading
@@ -56,12 +70,27 @@ public class TimeAttendanceTerminalMod {
         MinecraftForge.EVENT_BUS.register(RegisterPlayerJoinEvent.class);
         MinecraftForge.EVENT_BUS.register(RegisterPlayerQuitEvent.class);
 
+
     }
 
     private void setup(final FMLCommonSetupEvent event) {
         // some preinit code
-        LOGGER.info("HELLO FROM PREINIT");
-        LOGGER.info("DIRT BLOCK >> {}", Blocks.DIRT.getRegistryName());
+
+
+        new TimeSpan(1, TimeUnit.SECONDS);
+
+        // TimeAttendanceTerminalMod.chronosShared = new TimerAPI(new TimerAPIBridge() {
+        //     @NotNull
+        //     @Override
+        //     public List<String> getAllActiveUsers() {
+        //         return Arrays.asList(ServerLifecycleHooks.getCurrentServer().getPlayerList().getPlayerNamesArray());
+        //     }
+        //     @NotNull
+        //     @Override
+        //     public File getWorkingDirectory() {
+        //         return new File("chronos\\");
+        //     }
+        // });
     }
 
     private void enqueueIMC(final InterModEnqueueEvent event) {
