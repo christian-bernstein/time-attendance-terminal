@@ -1,3 +1,5 @@
+//file:noinspection SpellCheckingInspection
+
 buildscript {
     repositories {
         // These repositories are only for Gradle plugins, put any other repositories in the repository block further below
@@ -12,6 +14,9 @@ buildscript {
 plugins {
     id 'eclipse'
     id 'maven-publish'
+
+    id 'java'
+    id "com.github.johnrengelman.shadow" version "7.1.2"
 }
 apply plugin: 'net.minecraftforge.gradle'
 
@@ -125,9 +130,9 @@ repositories {
     // ForgeGradle automatically adds the Forge maven and Maven Central for you
 
     // If you have mod jar dependencies in ./libs, you can declare them as a repository like so:
-    // flatDir {
-    //     dir 'libs'
-    // }
+    flatDir {
+        dir 'libs'
+    }
 }
 
 dependencies {
@@ -148,10 +153,54 @@ dependencies {
     // http://www.gradle.org/docs/current/userguide/artifact_dependencies_tutorial.html
     // http://www.gradle.org/docs/current/userguide/dependency_management.html
 
-    implementation files("chronos_lib/chronos-shared-1.0-SNAPSHOT-all.jar") {
-        jarJar.pin(it)
+    // implementation files("libs/chronos-shared-1.0-SNAPSHOT-all.jar")
+    implementation group: "org.example", name: "chronos-shared", version: "1.0-SNAPSHOT-all"
+}
+
+
+@SuppressWarnings('GrMethodMayBeStatic')
+def shadow(String pack) {
+    println("Shadowing package: '$pack'")
+    shadowJar.relocate(pack, "shadow.$pack") {
+        exclude("org.slf4j.*")
     }
 }
+
+shadowJar {
+    // Shadow-jar should use the default jar
+    classifier = ""
+
+    dependencies {
+        include(dependency("org.example:chronos-shared:1.0-SNAPSHOT-all"))
+        exclude(dependency("net.minecraftforge:forge:1.18.2-40.1.85"))
+    }
+
+    // Shadow all required dependencies, except minecraft's internal dependencies
+    shadowJar.relocate("org", "shadow.org") {
+        exclude("org.slf4j")
+        exclude("org.slf4j.*")
+    }
+
+    shadow("kotlin")
+    shadow("kotlinx")
+    shadow("de.christianbernstein.chronos")
+    shadow("com.mchange")
+    shadow("com.zaxxer")
+
+    exclude("org.slf4j")
+    exclude("org.slf4j.*")
+
+
+}
+
+import com.github.jengelman.gradle.plugins.shadow.tasks.ConfigureShadowRelocation
+
+// import java.util.function.Consumer
+// task relocateShadowJar(type: ConfigureShadowRelocation) {
+//     target = tasks.shadowJar
+//     prefix = "shadow"
+// }
+// tasks.shadowJar.dependsOn tasks.relocateShadowJar
 
 // Example for how to get properties into the manifest for reading at runtime.
 jar {
@@ -190,3 +239,15 @@ publishing {
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8' // Use the UTF-8 charset for Java compilation
 }
+
+reobf {
+    shadowJar {
+        // mappingType = "SEARGE"
+    }
+}
+
+tasks.reobfShadowJar.mustRunAfter shadowJar
+
+// afterEvaluate {
+//     tasks.curseforge240995.dependsOn reobfShadowJar
+// }
