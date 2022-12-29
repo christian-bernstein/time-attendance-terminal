@@ -81,6 +81,7 @@ public class ChronosMod {
 
             @Override
             public void onSessionMarkedAsExpired(@NotNull SessionMarkedAsExpiredEvent ev) {
+                LOGGER.info("Session of user '{}' was marked as expired", ev.getUser().getId());
                 final ServerPlayer player = event.getServer().getPlayerList().getPlayerByName(ev.getUser().getId());
                 Objects.requireNonNull(player).connection.disconnect(new TextComponent("You ran out of time!"));
             }
@@ -90,6 +91,7 @@ public class ChronosMod {
             public List<String> getAllActiveUsers() {
                 return Arrays.asList(ServerLifecycleHooks.getCurrentServer().getPlayerList().getPlayerNamesArray());
             }
+
             @NotNull
             @Override
             public File getWorkingDirectory() {
