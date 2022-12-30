@@ -12,41 +12,42 @@
 
 package de.christianbernstein.forge.chronos;
 
+import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.logging.LogUtils;
 import de.christianbernstein.chronos.*;
+import kotlin.Unit;
+import net.minecraft.client.Minecraft;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
+import net.minecraft.commands.arguments.MessageArgument;
 import net.minecraft.network.chat.ChatType;
-import net.minecraft.network.chat.ComponentUtils;
 import net.minecraft.network.chat.TextComponent;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.level.block.Block;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.RegisterCommandsEvent;
-import net.minecraftforge.event.RegistryEvent;
 import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.event.server.ServerStoppingEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.InterModComms;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
-import net.minecraftforge.fml.event.lifecycle.InterModEnqueueEvent;
-import net.minecraftforge.fml.event.lifecycle.InterModProcessEvent;
 import net.minecraftforge.event.server.ServerStartingEvent;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import net.minecraftforge.server.ServerLifecycleHooks;
-import org.apache.commons.lang3.time.DurationFormatUtils;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 
 import java.io.File;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
 import java.time.Duration;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Objects;
-import java.util.UUID;
+import java.time.Instant;
+import java.util.*;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
+import java.util.logging.Level;
 
 // The value here should match an entry in the META-INF/mods.toml file
 @Mod("examplemod")
@@ -55,6 +56,7 @@ public class ChronosMod {
     // Directly reference a slf4j logger
     private static final Logger LOGGER = LogUtils.getLogger();
 
+    // TODO: ChronosAPI supports internal singleton pattern -> Use it (ChronosAPI.Companion.instance)
     public static ChronosAPI chronosShared;
 
     public ChronosMod() {
@@ -131,6 +133,16 @@ public class ChronosMod {
         chronosShared.requestJoin(name, () -> {
             // User is permitted to join
             chronosShared.executeSessionStart(name);
+
+            final Duration timeLeft = chronosShared.getTimeLeft(name);
+            final long s = timeLeft.getSeconds();
+            final String formatted = String.format("%d:%02d:%02d", s / 3600, (s % 3600) / 60, (s % 60));
+
+            // TODO: Check formatting
+            final String estimatedEndTime = new SimpleDateFormat("HH:mm:ss").format(Date.from(Instant.now().plus(timeLeft)));
+
+            event.getPlayer().sendMessage(new TextComponent(String.format("You have %s left", formatted)), event.getPlayer().getUUID());
+            event.getPlayer().sendMessage(new TextComponent(String.format("Your session is estimated to end at %s", estimatedEndTime)), event.getPlayer().getUUID());
         }, () -> {
             // user isn't permitted to join
             Objects.requireNonNull(Objects.requireNonNull(event.getEntityLiving().getServer()).getPlayerList().getPlayer(uuid)).connection.disconnect(
@@ -165,6 +177,10 @@ public class ChronosMod {
                 }))
 
                 .then(Commands.literal("admin")
+
+                        // Admin commands need active 'bypass' flag
+                        .requires(commandSourceStack -> Objects.requireNonNull(getPlayerContractor(commandSourceStack)).getBypass())
+
                         // Replenish command :: Runs replenish routine at execution time
                         .then(Commands.literal("replenish").executes(context -> {
                             chronosShared.replenish();
@@ -195,11 +211,57 @@ public class ChronosMod {
                             sendBasicChatMessage(context, "Your timer was resumed");
                             return 1;
                         }))
+
+                        // TODO: Make aware of present op status -> Different message & no update
+                        .then(Commands.literal("op")
+                                .then(Commands.argument("name", StringArgumentType.word())
+                                        .executes(context -> {
+                                            final String name = context.getArgument("name", String.class);
+                                            chronosShared.updateUser(name, user -> {
+                                                user.setOperator(true);
+                                                return user;
+                                            });
+                                            sendBasicChatMessage(context, String.format("%s is now a chronos operator", name));
+                                            return 1;
+                                        })
+                                )
+                        )
+
+                        // TODO: Make aware of present op status -> Different message & no update
+                        .then(Commands.literal("deop")
+                                .then(Commands.argument("name", StringArgumentType.word())
+                                        .executes(context -> {
+                                            final String name = context.getArgument("name", String.class);
+                                            chronosShared.updateUser(name, user -> {
+                                                user.setOperator(false);
+                                                return user;
+                                            });
+                                            sendBasicChatMessage(context, String.format("%s isn't a chronos operator anymore", name));
+                                            return 1;
+                                        })
+                                )
+                        )
                 )
         );
     }
 
     private void sendBasicChatMessage(@NotNull final CommandContext<CommandSourceStack> context, final String message) {
         context.getSource().sendSuccess(new TextComponent(message), false);
+    }
+
+
+    @Nullable
+    private Contractor getPlayerContractor(@NotNull final CommandSourceStack css) {
+        final String id = css.getDisplayName().getString();
+        final User user = ChronosAPI.Companion.getInstance().getUserFromID(id);
+        if (user == null) return null;
+        return new Contractor(id, (o, level) -> {
+            if (level == Level.SEVERE) {
+                css.sendFailure(new TextComponent(o.toString()));
+            } else {
+                css.sendSuccess(new TextComponent(o.toString()), false);
+            }
+            return Unit.INSTANCE;
+        }, user.getOperator());
     }
 }
