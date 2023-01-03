@@ -60,3 +60,8 @@ All commands are meant to be used ingame. Console functionality might be added i
     - `halt` Stop your timer. If stopped, your timer won't turn back on, even after rejoining the server *(Server restart excluded)*
     - `resume` Starts your timer again. 
     - **TODO: Continue writing** 
+
+## Updates & Issues
+This mod won't be developed actively. But any issues will be resolved quickly. 
+Use [GitHub Issues](https://github.com/christian-bernstein/time-attendance-terminal/issues) to let us know about any issues you encountered.
+Feature requests are welcome. [Write a feature request here](https://github.com/users/christian-bernstein/projects/3). 
