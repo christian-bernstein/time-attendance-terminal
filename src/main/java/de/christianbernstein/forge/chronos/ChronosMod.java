@@ -12,6 +12,7 @@
 
 package de.christianbernstein.forge.chronos;
 
+import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
@@ -37,7 +38,6 @@ import net.minecraftforge.event.server.ServerStartingEvent;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import net.minecraftforge.server.ServerLifecycleHooks;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 
 import java.io.File;
@@ -45,6 +45,7 @@ import java.text.SimpleDateFormat;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.logging.Level;
 
@@ -101,22 +102,28 @@ public class ChronosMod {
         });
 
         ChronosMod.chronosShared.start();
-
-        final Consumer<String> createAdminUser = id -> {
-            chronosShared.createUser(id);
-            chronosShared.updateUser(id, user -> {
-                user.setOperator(true);
-                return user;
-            });
-        };
-
-        // createAdminUser.accept("CWies");
-        // createAdminUser.accept("zZChrisZz");
     }
 
     @SubscribeEvent
     public void onServerStop(@NotNull ServerStoppingEvent event) {
         chronosShared.shutdown();
+    }
+
+    private void handlePlayerPermittedToJoin(@NotNull final PlayerEvent.PlayerLoggedInEvent event, @NotNull final String name) {
+        final Duration timeLeft = chronosShared.getTimeLeft(name);
+        final User user = chronosShared.getUserFromID(name);
+        final boolean preventSessionStart = user != null && timeLeft.isZero() && user.getOperator();
+        final boolean wasSessionStarted = !preventSessionStart && chronosShared.executeSessionStart(name, false);
+        final long s = timeLeft.getSeconds();
+        final String formatted = String.format("%d:%02d:%02d", s / 3600, (s % 3600) / 60, (s % 60));
+        final String estimatedEndTime = new SimpleDateFormat("HH:mm:ss").format(Date.from(Instant.now().plus(timeLeft)));
+        // Send appropriate join message
+        event.getPlayer().sendMessage(new TextComponent(String.format("You have %s left", formatted)), event.getPlayer().getUUID());
+        if (wasSessionStarted) {
+            event.getPlayer().sendMessage(new TextComponent(String.format("Your session is estimated to end at %s", estimatedEndTime)), event.getPlayer().getUUID());
+        } else {
+            event.getPlayer().sendMessage(new TextComponent("Your session hasn't started.").withStyle(ChatFormatting.BOLD), event.getPlayer().getUUID());
+        }
     }
 
     /**
@@ -134,24 +141,7 @@ public class ChronosMod {
         // Execute standard join procedure
         chronosShared.requestJoin(name, () -> {
             // User is permitted to join
-            final boolean wasSessionStarted = chronosShared.executeSessionStart(name, false);
-            // Calculate formatted session matrices
-            final Duration timeLeft = chronosShared.getTimeLeft(name);
-            final long s = timeLeft.getSeconds();
-            final String formatted = String.format("%d:%02d:%02d", s / 3600, (s % 3600) / 60, (s % 60));
-            final String estimatedEndTime = new SimpleDateFormat("HH:mm:ss").format(Date.from(Instant.now().plus(timeLeft)));
-            // Send join message
-
-            event.getPlayer().sendMessage(new TextComponent(String.format("You have %s left", formatted)), event.getPlayer().getUUID());
-            if (wasSessionStarted) {
-                event.getPlayer().sendMessage(new TextComponent(String.format("Your session is estimated to end at %s", estimatedEndTime)), event.getPlayer().getUUID());
-            } else {
-                event.getPlayer().sendMessage(new TextComponent("Your session hasn't started.").withStyle(ChatFormatting.BOLD), event.getPlayer().getUUID());
-            }
-
-
-
-
+            this.handlePlayerPermittedToJoin(event, name);
         }, () -> {
             // User isn't permitted to join
             Objects.requireNonNull(Objects.requireNonNull(event.getEntityLiving().getServer()).getPlayerList().getPlayer(uuid)).connection.disconnect(
@@ -165,22 +155,68 @@ public class ChronosMod {
         chronosShared.executeSessionStop(event.getPlayer().getName().getString(), ActionMode.ACTION);
     }
 
+    public String formatSeconds(final long seconds) {
+        return String.format("%d:%02d:%02d", seconds / 3600, (seconds % 3600) / 60, (seconds % 60));
+    }
+
+    public int printSlots(final CommandContext<CommandSourceStack> context, final String id) {
+        try {
+            final List<Long> slots = chronosShared.getSlotsOf(id);
+            final TextComponent component = new TextComponent(String.format("Slots (%s): ←[", id));
+            for (int i = 0; i < slots.size(); i++) {
+                final Long slot = slots.get(i);
+                final boolean isLast = slots.size() - 1 == i;
+                final String s = formatSeconds(slot);
+                component.append(new TextComponent(s).withStyle(ChatFormatting.YELLOW));
+                if (!isLast) component.append(new TextComponent(", "));
+                else component.append(new TextComponent("]‐"));
+            }
+            context.getSource().sendSuccess(component, false);
+        } catch (final Exception e) {
+            e.printStackTrace();
+            return 2;
+        }
+        return 1;
+    }
+
     /**
      * Time command :: Gets the remaining session time of the calling player
      * @param lab Chronos base command node
      */
     private void registerPublicCommands(@NotNull final LiteralArgumentBuilder<CommandSourceStack> lab) {
+        lab.then(Commands.literal("slots").executes(context -> {
+            final String id = context.getSource().getDisplayName().getString();
+            return this.printSlots(context, id);
+        }));
+
+        // TODO: Move to admin stuff ->
+        lab.then(Commands.literal("slots").then(Commands.argument("target", EntityArgument.player()).executes(context -> {
+            final AtomicInteger result = new AtomicInteger(1);
+            this.sendUpdateResponseMessage(context, chronosShared.update(getPlayerContractor(context.getSource()), new String[]{"query_other_slots"}, () -> {
+                try {
+                    final String id = EntityArgument.getPlayer(context, "target").getName().getContents();
+                    return this.printSlots(context, id);
+
+                } catch (final Exception e) {
+                    e.printStackTrace();
+                    result.set(2);
+                    return new UpdateResult<Void>(null, false, UpdateResultCodes.INTERNAL_ERROR.getCode(), e);
+                }
+            }), null);
+            return result.get();
+        })));
+
         lab.then(Commands.literal("time").executes(context -> {
             try {
                 final Duration timeLeft = chronosShared.getTimeLeft(context.getSource().getDisplayName().getString());
                 final long s = timeLeft.getSeconds();
-                final String formatted = String.format("%d:%02d:%02d", s / 3600, (s % 3600) / 60, (s % 60));
+                final String formatted = this.formatSeconds(s);
                 context.getSource().sendSuccess(new TextComponent(
                         String.format("You have %s left", formatted)
                 ), false);
             } catch (final Exception e) {
                 e.printStackTrace();
-                return 1;
+                return 2;
             }
             return 1;
         }));
@@ -203,14 +239,38 @@ public class ChronosMod {
                     return 1;
                 }))
 
+                .then(Commands.literal("addToSlot").then(Commands.argument("target", EntityArgument.player()).then(Commands.argument("slot", IntegerArgumentType.integer()).then(Commands.argument("delta", IntegerArgumentType.integer()).executes(context -> {
+                    this.sendUpdateResponseMessage(context, chronosShared.update(getPlayerContractor(context.getSource()), new String[]{"add_to_slot"}, () -> {
+                        try {
+                            final String id = EntityArgument.getPlayer(context, "target").getName().getContents();
+                            final int slot = context.getArgument("slot", Integer.class);
+                            final int delta = context.getArgument("delta", Integer.class);
+
+                            chronosShared.updateUser(id, user -> {
+                                final List<Long> slots = user.getSlotsInSeconds();
+                                Long slotValue = slots.get(slot) + delta;
+                                slots.set(slot, slotValue);
+                                user.setSlotsInSeconds(slots);
+                                return user;
+                            });
+
+                            return new UpdateResult<Void>();
+                        } catch (final Exception e) {
+                            e.printStackTrace();
+                            return new UpdateResult<Void>(null, false, UpdateResultCodes.INTERNAL_ERROR.getCode(), e);
+                        }
+                    }), new TextComponent("Added time to slot"));
+                    return 1;
+                })))))
+
                 .then(Commands.literal("haltGlobal").executes(context -> {
-                    final UpdateResult<Unit> result = chronosShared.stopGlobalTimer(ChronosAPI.Companion.getConsole());
+                    final UpdateResult<Unit> result = chronosShared.stopGlobalTimer(getPlayerContractor(context.getSource()));
                     this.sendUpdateResponseMessage(context, result, new TextComponent("Global timer was haltet"));
                     return 1;
                 }))
 
                 .then(Commands.literal("resumeGlobal").executes(context -> {
-                    final UpdateResult<Unit> result = chronosShared.startGlobalTimer(ChronosAPI.Companion.getConsole());
+                    final UpdateResult<Unit> result = chronosShared.startGlobalTimer(getPlayerContractor(context.getSource()));
                     this.sendUpdateResponseMessage(context, result, new TextComponent("Global timer was resumed"));
                     return 1;
                 }))
@@ -227,35 +287,25 @@ public class ChronosMod {
                     return 1;
                 }))
 
-                // TODO: Make aware of present op status -> Different message & no update
-                .then(Commands.literal("op")
-                        .then(Commands.argument("name", StringArgumentType.word())
-                                .executes(context -> {
-                                    final String name = context.getArgument("name", String.class);
-                                    chronosShared.updateUser(name, user -> {
-                                        user.setOperator(true);
-                                        return user;
-                                    });
-                                    sendBasicChatMessage(context, String.format("%s is now a chronos operator", name), true);
-                                    return 1;
-                                })
-                        )
-                )
+                .then(Commands.literal("op").then(Commands.argument("name", StringArgumentType.word()).executes(context -> {
+                    final String name = context.getArgument("name", String.class);
+                    chronosShared.updateUser(name, user -> {
+                        user.setOperator(true);
+                        return user;
+                    });
+                    sendBasicChatMessage(context, String.format("%s is now a chronos operator", name), true);
+                    return 1;
+                })))
 
-                // TODO: Make aware of present op status -> Different message & no update
-                .then(Commands.literal("deop")
-                        .then(Commands.argument("name", StringArgumentType.word())
-                                .executes(context -> {
-                                    final String name = context.getArgument("name", String.class);
-                                    chronosShared.updateUser(name, user -> {
-                                        user.setOperator(false);
-                                        return user;
-                                    });
-                                    sendBasicChatMessage(context, String.format("%s isn't a chronos operator anymore", name), true);
-                                    return 1;
-                                })
-                        )
-                )
+                .then(Commands.literal("deop").then(Commands.argument("name", StringArgumentType.word()).executes(context -> {
+                    final String name = context.getArgument("name", String.class);
+                    chronosShared.updateUser(name, user -> {
+                        user.setOperator(false);
+                        return user;
+                    });
+                    sendBasicChatMessage(context, String.format("%s isn't a chronos operator anymore", name), true);
+                    return 1;
+                })))
         );
     }
 
@@ -269,21 +319,18 @@ public class ChronosMod {
 
     private void sendUpdateResponseMessage(final CommandContext<CommandSourceStack> context, @NotNull final UpdateResult<?> result, final Component successComponent) {
         if (result.getSuccess()) {
-            context.getSource().sendSuccess(successComponent, false);
+            if (successComponent != null) context.getSource().sendSuccess(successComponent, false);
             return;
         }
-
         if (result.getCode() == UpdateResultCodes.LACK_OF_PERMISSION.getCode()) {
             context.getSource().sendFailure(new TextComponent("You're not having sufficient permissions to execute this routine")
                     .withStyle(ChatFormatting.RED)
             );
             return;
         }
-
         if (result.getCode() == UpdateResultCodes.INTERNAL_ERROR.getCode()) {
             context.getSource().sendFailure(new TextComponent("Error occurred while executing internal chronos routine")
-                    .withStyle(ChatFormatting.RED)
-                    .withStyle(ChatFormatting.BOLD)
+                    .withStyle(ChatFormatting.RED).withStyle(ChatFormatting.BOLD)
             );
             context.getSource().sendFailure(new TextComponent(String.format("Error: %s", result.getError() != null ? result.getError().getClass() : "N/A"))
                     .withStyle(ChatFormatting.RED)
