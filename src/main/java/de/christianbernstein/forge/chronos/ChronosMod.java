@@ -33,9 +33,7 @@ import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.event.server.ServerStoppingEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
-import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.minecraftforge.event.server.ServerStartingEvent;
-import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import net.minecraftforge.server.ServerLifecycleHooks;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
@@ -46,7 +44,6 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Consumer;
 import java.util.logging.Level;
 
 // The value here should match an entry in the META-INF/mods.toml file
@@ -60,16 +57,12 @@ public class ChronosMod {
     public static ChronosAPI chronosShared;
 
     public ChronosMod() {
-        // Register the setup method for modloading
-        FMLJavaModLoadingContext.get().getModEventBus().addListener(this::setup);
         // Register ourselves for server and other game events we are interested in
         MinecraftForge.EVENT_BUS.register(this);
     }
 
-    private void setup(final FMLCommonSetupEvent event) {
-    }
-
     // You can use SubscribeEvent and let the Event Bus discover methods to call
+    @SuppressWarnings("unused")
     @SubscribeEvent
     public void onServerStarting(@NotNull ServerStartingEvent event) {
         // Init chronos :: Supply with locally created Server-Chronos-Bridge
@@ -104,6 +97,7 @@ public class ChronosMod {
         ChronosMod.chronosShared.start();
     }
 
+    @SuppressWarnings("unused")
     @SubscribeEvent
     public void onServerStop(@NotNull ServerStoppingEvent event) {
         chronosShared.shutdown();
@@ -132,6 +126,7 @@ public class ChronosMod {
      *  IF FALSE: Kick the player with an appropriate message
      *  IF TRUE: Let the play join & start a new user session in chronos
      */
+    @SuppressWarnings("unused")
     @SubscribeEvent
     public void onPlayerLoggedInEvent(@NotNull final PlayerEvent.PlayerLoggedInEvent event) {
         final String name = event.getPlayer().getName().getString();
@@ -150,6 +145,7 @@ public class ChronosMod {
         });
     }
 
+    @SuppressWarnings("unused")
     @SubscribeEvent
     public void onPlayerLoggedOutEvent(@NotNull final PlayerEvent.PlayerLoggedOutEvent event) {
         chronosShared.executeSessionStop(event.getPlayer().getName().getString(), ActionMode.ACTION);
@@ -309,6 +305,7 @@ public class ChronosMod {
         );
     }
 
+    @SuppressWarnings("unused")
     @SubscribeEvent
     public void onRegisterCommandEvent(@NotNull final RegisterCommandsEvent event) {
         final LiteralArgumentBuilder<CommandSourceStack> lab = Commands.literal("chronos");
