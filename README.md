@@ -1,6 +1,6 @@
 <div align="center">
     <h1>Time-Attendance-Terminal</h1>
-    <a href="https://github.com/prisma/prisma-examples/">Chronos API</a>
+    <a href="https://github.com/christian-bernstein/chronos-shared">Chronos API</a>
     <span>&nbsp;&nbsp;•&nbsp;&nbsp;</span>
     <a href="https://www.prisma.io/docs/getting-started/quickstart">Download</a>
     <span>&nbsp;&nbsp;•&nbsp;&nbsp;</span>
