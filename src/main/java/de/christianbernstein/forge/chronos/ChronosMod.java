@@ -260,7 +260,10 @@ public class ChronosMod {
                 })))))
 
                 .then(Commands.literal("haltGlobal").executes(context -> {
-                    final UpdateResult<Unit> result = chronosShared.stopGlobalTimer(getPlayerContractor(context.getSource()));
+                    final UpdateResult<GlobalTimerStopResult> result = chronosShared.stopGlobalTimer(getPlayerContractor(context.getSource()));
+
+                    // TODO: Handle exceptions from result
+
                     this.sendUpdateResponseMessage(context, result, new TextComponent("Global timer was haltet"));
                     return 1;
                 }))
